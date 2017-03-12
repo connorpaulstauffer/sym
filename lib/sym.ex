@@ -1,14 +1,24 @@
 defmodule Sym do 
   
-  # use Neotomex.ExGrammar
-  
-  # @operators [:!, :&, :||, :->, :<>]
+  require IEx
   
   @op_strs %{ :! => "~", :& => "&", :|| => "v", :-> => "->", :<> => "<->" }
   @op_syms @op_strs 
     |> Map.keys 
     |> Enum.map(fn k -> { @op_strs[k], k } end) 
     |> Enum.into(%{})
+    
+  @laws [
+    :identity, 
+    :double_negation, 
+    :idempotent, 
+    :biconditional, 
+    :negated_conditionals, 
+    :negated_conditional, 
+    :conditional, 
+    :demorgan, 
+    :reverse_distributive
+  ]
   
   # p ∨ c ≡ p
   def identity({ :||, [p, :c] }), do: p
@@ -67,10 +77,10 @@ defmodule Sym do
   def op_to_s(op), do: @op_strs[op]
   def op_to_sym(str), do: @op_syms[str]
   
+  def simplify(prop), do: @laws |> Enum.reduce(prop, &apply(Sym, &1, [&2]))
+  
   defmodule Parser do
-    
-    require IEx
-    
+        
     use Neotomex.ExGrammar
     
     @root true
@@ -98,6 +108,11 @@ defmodule Sym do
     define :atom, "[a-z]", do: (p -> String.to_atom(p))
     
     define :space, "[ \\r\\n\\s\\t]*"
+    
+    def parse_prop(prop) do
+      { :ok, p } = parse(prop)
+      p
+    end
     
   end
   
