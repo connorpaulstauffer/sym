@@ -52,7 +52,8 @@ defmodule Sym.Mixfile do
   defp deps do
     [
       {:ex_doc, "~> 0.11", only: :dev},
-      {:earmark, "~> 0.1", only: :dev}
+      {:earmark, "~> 0.1", only: :dev},
+      {:neotomex, "~> 0.1.6"}
     ]
   end
 end
