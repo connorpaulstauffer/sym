@@ -11,20 +11,36 @@ defmodule Sym do
   @laws [
     :identity, 
     :double_negation, 
+    :tautology,
+    :contradiction,
     :idempotent, 
     :biconditional, 
     :negated_conditionals, 
     :negated_conditional, 
     :conditional, 
-    :demorgan, 
+    :rev_demorgan, 
     :reverse_distributive
   ]
   
+  @contradiction_seq [
+    :identity, 
+    :double_negation, 
+    :tautology,
+    :contradiction,
+    :idempotent, 
+    :biconditional, 
+    :negated_conditionals, 
+    :negated_conditional, 
+    :conditional, 
+    :rev_demorgan, 
+    :reverse_distributive  
+  ]
+  
   # p ∨ c ≡ p
-  def identity({ :||, [p, :c] }), do: p
+  def identity({ :||, [p, :C] }), do: p
   # def identity({ :||, [:c, p] }), do: p
   # p ∧ t ≡ p
-  def identity({ :&, [p, :t] }), do: p
+  def identity({ :&, [p, :T] }), do: p
   # def identity({ :&, [:t, p] }), do: p
   def identity(p), do: p
   
@@ -60,6 +76,10 @@ defmodule Sym do
   def demorgan({ :!, { :&, [p, q] } }), do: { :||, [{ :!, p }, { :!, q }] }
   def demorgan(p), do: p
   
+  def rev_demorgan({ :&, [{ :!, p }, { :!, q }] }), do: { :!, { :||, [p, q] } }
+  def rev_demorgan({ :||, [{ :!, p }, { :!, q }] }), do: { :!, { :&, [p, q] } }
+  def rev_demorgan(p), do: p
+  
   # (p ∧ q) ∨ (p ∧ r) ≡ p ∧ (q ∨ r)
   def reverse_distributive({ :||, [{ :&, [p, q] }, { :&, [p, r] }] }), do:
     { :&, [p, { :||, [q, r] } ] }
@@ -68,16 +88,51 @@ defmodule Sym do
     { :||, [p, { :&, [q, r] } ] }
   def reverse_distributive(p), do: p
   
-  def to_s(p), do: _to_s(p) |> String.replace(~r/^\(|\)$/, "")
+  def tautology({ :||, [p, { :!, p }] }), do: :T
+  def tautology(p), do: p
+  
+  # def contradiction({ :&, [p, q] }), do: 
+  #   if is_contradiction?(p, q), do: :c, else: { :&, [p, q] }
+  # def contradiction(p), do: p
+  def contradiction({ :&, [p, { :!, p }] }), do: :C
+  def contradiction(p), do: p
+  
+  # def is_contradiction?(p, q), do: 
+  #   apply_laws_rec(p, @contradiction_seq) == 
+  #     apply_laws_rec(q, @contradiction_seq)
+  
+  # def to_s(p), do: _to_s(p) |> String.replace(~r/^\(|\)$/, "")
 
-  def _to_s({ :!, p }), do: "#{op_to_s(:!)}#{ _to_s(p) }"
-  def _to_s({ op, [p, q] }), do: "(#{_to_s(p)} #{op_to_s(op)} #{_to_s(q)})"
-  def _to_s(p), do: "#{p}"
+  def to_s({ :!, p }), do: "#{op_to_s(:!)}#{ to_s(p) }"
+  def to_s({ op, [p, q] }), do: "(#{to_s(p)} #{op_to_s(op)} #{to_s(q)})"
+  def to_s(:T), do: "T"
+  def to_s(:C), do: "C"
+  def to_s(p), do: "#{p}"
   
   def op_to_s(op), do: @op_strs[op]
   def op_to_sym(str), do: @op_syms[str]
   
-  def simplify(prop), do: @laws |> Enum.reduce(prop, &apply(Sym, &1, [&2]))
+  def simplify({ :!, p }), do: apply_laws_rec({ :!, simplify(p) })
+  def simplify({ op, [p, q] }), do: 
+    apply_laws_rec({ op, Enum.map([p, q], &simplify/1) })
+  def simplify(p), do: apply_laws_rec(p)
+  
+  def apply_laws_rec(p), do: apply_laws_rec(p, @laws)
+  def apply_laws_rec(p, laws) do
+    applied = apply_laws(p, laws)
+    if length(applied) == 0, 
+      do: applied, 
+      else: apply_laws_rec(elem(hd(applied), 0)) ++ applied
+  end
+
+  def apply_laws(p, laws), do:
+    laws 
+      |> Enum.scan({ nil, p }, &{ &1, apply(Sym, &1, [elem(&2, 1)]) })
+      |> Enum.reduce([{ nil, p }], 
+        &if(elem(&1, 1) == elem(hd(&2), 1), do: &2, else: [&1 | &2]))
+      |> Enum.filter(&(elem(&1, 0) != nil))
+  
+  def laws, do: @laws
   
   defmodule Parser do
         
@@ -85,9 +140,11 @@ defmodule Sym do
     
     @root true
     define :proposition, 
-      "(expression / negated / wrapped / atom)"
+      "(expression / negated / wrapped / atom / tautology / contradiction)"
       
-    define :wrapped, "<'('> (expression / negated / atom) <')'>", do: ([p] -> p)
+    define :wrapped, 
+      "<'('> (expression / negated / atom / tautology / contradiction) <')'>", 
+      do: ([p] -> p)
 
     define :expression, 
       "(wrapped / negated / atom) 
@@ -97,13 +154,17 @@ defmodule Sym do
       (wrapped / negated / atom)", 
       do: ([p, op, q] -> { op, [p, q] })
     
-    define :negated, "negation (atom / wrapped)", do: ([:!, p] -> { :!, p })
+    define :negated, 
+      "negation (atom / wrapped / tautology / contradiction / negated)", 
+      do: ([:!, p] -> { :!, p })
     
     define :conjunctive, "[\&]", do: (op -> Sym.op_to_sym(op))
     define :negation, "'~'", do: (op -> Sym.op_to_sym(op))
     define :disjunctive, "'v'", do: (op -> Sym.op_to_sym(op))
     define :conditional, "'->'", do: (op -> Sym.op_to_sym(op))
     define :biconditional, "'<->'", do: (op -> Sym.op_to_sym(op))
+    define :tautology, "'T'", do: (_ -> :T)
+    define :contradiction, "'C'", do: (_ -> :C)
     
     define :atom, "[a-z]", do: (p -> String.to_atom(p))
     
