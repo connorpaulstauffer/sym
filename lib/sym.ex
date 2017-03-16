@@ -19,7 +19,7 @@ defmodule Sym do
     :negated_conditional, 
     :conditional, 
     :rev_demorgan, 
-    :reverse_distributive
+    :rev_distributive
   ]
   
   @contradiction_seq [
@@ -33,7 +33,7 @@ defmodule Sym do
     :negated_conditional, 
     :conditional, 
     :rev_demorgan, 
-    :reverse_distributive  
+    :rev_distributive  
   ]
   
   # p ∨ c ≡ p
@@ -81,12 +81,12 @@ defmodule Sym do
   def rev_demorgan(p), do: p
   
   # (p ∧ q) ∨ (p ∧ r) ≡ p ∧ (q ∨ r)
-  def reverse_distributive({ :||, [{ :&, [p, q] }, { :&, [p, r] }] }), do:
+  def rev_distributive({ :||, [{ :&, [p, q] }, { :&, [p, r] }] }), do:
     { :&, [p, { :||, [q, r] } ] }
   # (p ∨ q) ∧ (p ∨ r) ≡ p ∨ (q ∧ r)
-  def reverse_distributive({ :&, [{ :||, [p, q] }, { :||, [p, r] }] }), do:
+  def rev_distributive({ :&, [{ :||, [p, q] }, { :||, [p, r] }] }), do:
     { :||, [p, { :&, [q, r] } ] }
-  def reverse_distributive(p), do: p
+  def rev_distributive(p), do: p
   
   def tautology({ :||, [p, { :!, p }] }), do: :T
   def tautology(p), do: p
@@ -112,25 +112,52 @@ defmodule Sym do
   def op_to_s(op), do: @op_strs[op]
   def op_to_sym(str), do: @op_syms[str]
   
+  # def simplify({ :!, p }), do: simplify({ :!, simplify(p) })
+  # def simplify({ op, [p, q] }), do: 
+  #   simplify({ op, Enum.map([p, q], &simplify/1) })
+  # def simplify(p), do: apply_laws_rec(p)
+  
+  # Steps
+  #   - break up statement, simplify children
+  #   - apply laws until nothing is changed
+  #   - apply basic laws
+  
+  # def simplify(p) do
+  #   case p do
+  #     { :!, p } ->
+  #     { p, [p, q] } ->
+  #     { p } -> 
+  #   end
+  # end
+
   def simplify({ :!, p }), do: apply_laws_rec({ :!, simplify(p) })
   def simplify({ op, [p, q] }), do: 
     apply_laws_rec({ op, Enum.map([p, q], &simplify/1) })
   def simplify(p), do: apply_laws_rec(p)
   
+  # TODO combine with simplify?
   def apply_laws_rec(p), do: apply_laws_rec(p, @laws)
-  def apply_laws_rec(p, laws) do
-    applied = apply_laws(p, laws)
-    if length(applied) == 0, 
-      do: applied, 
-      else: apply_laws_rec(elem(hd(applied), 0)) ++ applied
+  def apply_laws_rec(p, laws), do: 
+    handle_law_trace(apply_laws(p, laws), p, laws)
+  
+  def handle_law_trace({ p, trace }, p, laws), do: { p, trace }
+  def handle_law_trace({ p1, trace1 }, p, laws) do
+    { p2, trace2 } = handle_law_trace(apply_laws(p1, laws), p1, laws)
+    { p2, trace2 ++ trace1 }
   end
 
-  def apply_laws(p, laws), do:
+  def apply_laws(p, laws) do
+    trace = trace_laws(p, laws)
+    new_val = if length(trace) == 0, do: p, else: elem(hd(trace), 0)
+    { new_val, trace }
+  end
+  
+  def trace_laws(p, laws), do:
     laws 
-      |> Enum.scan({ nil, p }, &{ &1, apply(Sym, &1, [elem(&2, 1)]) })
-      |> Enum.reduce([{ nil, p }], 
-        &if(elem(&1, 1) == elem(hd(&2), 1), do: &2, else: [&1 | &2]))
-      |> Enum.filter(&(elem(&1, 0) != nil))
+      |> Enum.scan({ p, nil }, &{ apply(Sym, &1, [elem(&2, 0)]), &1 })
+      |> Enum.reduce([{ p, nil }], 
+        &if(elem(&1, 0) == elem(hd(&2), 0), do: &2, else: [&1 | &2]))
+      |> Enum.filter(&(elem(&1, 1) != nil))
   
   def laws, do: @laws
   
@@ -166,7 +193,7 @@ defmodule Sym do
     define :tautology, "'T'", do: (_ -> :T)
     define :contradiction, "'C'", do: (_ -> :C)
     
-    define :atom, "[a-z]", do: (p -> String.to_atom(p))
+    define :atom, "[a-z]", do: (p -> { String.to_atom(p) })
     
     define :space, "[ \\r\\n\\s\\t]*"
     
@@ -190,11 +217,11 @@ end
 # double negation
 # indempotent
 # if only if
-# reverse conditional negations
+# rev conditional negations
 # negated conditional
 # conditional def
 # demorgan
-# reverse distributive
+# rev distributive
 
 # commutative to order alphabetically
 
