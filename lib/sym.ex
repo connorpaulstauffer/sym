@@ -91,17 +91,8 @@ defmodule Sym do
   def tautology({ :||, [p, { :!, p }] }), do: :T
   def tautology(p), do: p
   
-  # def contradiction({ :&, [p, q] }), do: 
-  #   if is_contradiction?(p, q), do: :c, else: { :&, [p, q] }
-  # def contradiction(p), do: p
   def contradiction({ :&, [p, { :!, p }] }), do: :C
   def contradiction(p), do: p
-  
-  # def is_contradiction?(p, q), do: 
-  #   apply_laws_rec(p, @contradiction_seq) == 
-  #     apply_laws_rec(q, @contradiction_seq)
-  
-  # def to_s(p), do: _to_s(p) |> String.replace(~r/^\(|\)$/, "")
 
   def to_s({ :!, p }), do: "#{op_to_s(:!)}#{ to_s(p) }"
   def to_s({ op, [p, q] }), do: "(#{to_s(p)} #{op_to_s(op)} #{to_s(q)})"
@@ -111,37 +102,17 @@ defmodule Sym do
   
   def op_to_s(op), do: @op_strs[op]
   def op_to_sym(str), do: @op_syms[str]
-  
-  # def simplify({ :!, p }), do: simplify({ :!, simplify(p) })
-  # def simplify({ op, [p, q] }), do: 
-  #   simplify({ op, Enum.map([p, q], &simplify/1) })
-  # def simplify(p), do: apply_laws_rec(p)
-  
-  # Steps
-  #   - break up statement, simplify children
-  #   - apply laws until nothing is changed
-  #   - apply basic laws
-  
-  # def simplify(p) do
-  #   case p do
-  #     { :!, p } ->
-  #     { p, [p, q] } ->
-  #     { p } -> 
-  #   end
-  # end
 
   def simplify({ :!, p }), do: apply_laws_rec({ :!, simplify(p) })
   def simplify({ op, [p, q] }), do: 
     apply_laws_rec({ op, Enum.map([p, q], &simplify/1) })
   def simplify(p), do: apply_laws_rec(p)
   
-  # TODO combine with simplify?
   def apply_laws_rec(p), do: apply_laws_rec(p, @laws)
-  def apply_laws_rec(p, laws), do: 
-    handle_law_trace(apply_laws(p, laws), p, laws)
+  def apply_laws_rec(p, laws), do: combine_traces(apply_laws(p, laws), p, laws)
   
-  def handle_law_trace({ p, trace }, p, laws), do: { p, trace }
-  def handle_law_trace({ p1, trace1 }, p, laws) do
+  def combine_traces({ p, trace }, p, laws), do: { p, trace }
+  def combine_traces({ p1, trace1 }, p, laws) do
     { p2, trace2 } = handle_law_trace(apply_laws(p1, laws), p1, laws)
     { p2, trace2 ++ trace1 }
   end
@@ -205,49 +176,3 @@ defmodule Sym do
   end
   
 end
-
-# { :!, { :!, true } }
-# { :!, true }
-# { :&, [:p, :q] }
-# { :||, [:p, :q] }
-# { :->, [:p, :q] }
-
-
-# identity
-# double negation
-# indempotent
-# if only if
-# rev conditional negations
-# negated conditional
-# conditional def
-# demorgan
-# rev distributive
-
-# commutative to order alphabetically
-
-# only used if necessary. not normal simplification
-# universal bound
-# absorption
-
-# ?
-# negation laws
-# negation of t and c
-
-
-# Commutative laws: p ∨ q ≡ q ∨ p p ∧ q ≡ q ∧ p
-# Associative laws: (p ∨ q) ∨ r ≡ p ∨ (q ∨ r) (p ∧ q) ∧ r ≡ p ∧ (q ∧ r)
-# Distributive laws: p ∧ (q ∨ r) ≡ (p ∧ q) ∨ (p ∧ r) p ∨ (q ∧ r) ≡ (p ∨ q) ∧ (p ∨ r)
-# Idempotent laws: p ∨ p ≡ p p ∧ p ≡ p
-# Absorption laws: p ∧ (p ∨ q) ≡ p p ∨ (p ∧ q) ≡ p
-# Identity laws: p ∨ c ≡ p p ∧ t ≡ p
-# Universal bound laws: p ∨ t ≡ t p ∧ c ≡ c
-# De Morgan laws: ∼(p ∨ q) ≡ ∼p ∧ ∼q ∼(p ∧ q) ≡ ∼p ∨ ∼q
-# Negation laws: p ∨ ∼p ≡ t p ∧ ∼p ≡ c
-# Negations of t and c: ∼t ≡ c ∼c ≡ t
-# Double negation law: ∼∼p ≡ p
-# Other equivalences: p → q ≡ ∼p ∨ q ∼(p → q) ≡ p ∧ ∼q
-# p → q ≡ ∼q → ∼p p ↔ q ≡ (p → q) ∧ (q → p)
-
-# (p ∧ ∼p) → (p ∨ (q ∨ p))
-# { :->, [{ :&, [:p, { :!, :p }] }, { :||, [:p, { :||, [:q, :p] }] }] }
-
