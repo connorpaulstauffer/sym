@@ -38,10 +38,8 @@ defmodule Sym do
   
   # p ∨ c ≡ p
   def identity({ :||, [p, :C] }), do: p
-  # def identity({ :||, [:c, p] }), do: p
   # p ∧ t ≡ p
   def identity({ :&, [p, :T] }), do: p
-  # def identity({ :&, [:t, p] }), do: p
   def identity(p), do: p
   
   # ∼∼p ≡ p
@@ -129,16 +127,16 @@ defmodule Sym do
     { 
       r, 
       trace_r ++ 
-      merge_child_trace(trace_q, { op, [p1, q] }, q) ++
-      merge_child_trace(trace_p, { op, [p, q] }, p)
+      wrap_traces(trace_q, { op, [p1, q] }, q) ++
+      wrap_traces(trace_p, { op, [p, q] }, p)
     }
   end 
   def simplify(p), do: apply_laws_rec(p)
   
-  def merge_child_trace(trace, { op, [p, q] }, p) do
+  def wrap_traces(trace, { op, [p, q] }, p) do
     trace |> Enum.map(fn ({ p1, law }) -> { { op, [p1, q] }, law } end)
   end
-  def merge_child_trace(trace, { op, [p, q] }, q) do
+  def wrap_traces(trace, { op, [p, q] }, q) do
     trace |> Enum.map(fn ({ q1, law }) -> { { op, [p, q1] }, law } end)
   end
   
