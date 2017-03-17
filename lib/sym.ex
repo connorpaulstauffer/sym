@@ -98,22 +98,56 @@ defmodule Sym do
   def to_s({ op, [p, q] }), do: "(#{to_s(p)} #{op_to_s(op)} #{to_s(q)})"
   def to_s(:T), do: "T"
   def to_s(:C), do: "C"
-  def to_s(p), do: "#{p}"
+  def to_s({ p }), do: "#{p}"
   
   def op_to_s(op), do: @op_strs[op]
   def op_to_sym(str), do: @op_syms[str]
+  
+  def run(str), do: 
+    str 
+      |> Sym.Parser.parse_prop 
+      |> Sym.simplify
+      |> Sym.print
+  
+  def print({ _, trace }), do:
+    trace
+      |> Enum.reverse
+      |> Enum.map(fn ({ p, law }) -> "#{to_s(p)} -- #{law}" end)
+      |> Enum.each(&IO.puts/1)
 
-  def simplify({ :!, p }), do: apply_laws_rec({ :!, simplify(p) })
-  def simplify({ op, [p, q] }), do: 
-    apply_laws_rec({ op, Enum.map([p, q], &simplify/1) })
+  def simplify({ :!, p }) do
+    { p1, trace_p } = simplify(p)
+    { r, trace_r } = apply_laws_rec({ :!, p1 })
+    
+    { r, trace_r ++ trace_p }
+  end
+  def simplify({ op, [p, q] }) do
+    { p1, trace_p } = simplify(p)
+    { q1, trace_q } = simplify(q)
+    { r, trace_r } = apply_laws_rec({ op, [p1, q1] })
+
+    { 
+      r, 
+      trace_r ++ 
+      merge_child_trace(trace_q, { op, [p1, q] }, q) ++
+      merge_child_trace(trace_p, { op, [p, q] }, p)
+    }
+  end 
   def simplify(p), do: apply_laws_rec(p)
+  
+  def merge_child_trace(trace, { op, [p, q] }, p) do
+    trace |> Enum.map(fn ({ p1, law }) -> { { op, [p1, q] }, law } end)
+  end
+  def merge_child_trace(trace, { op, [p, q] }, q) do
+    trace |> Enum.map(fn ({ q1, law }) -> { { op, [p, q1] }, law } end)
+  end
   
   def apply_laws_rec(p), do: apply_laws_rec(p, @laws)
   def apply_laws_rec(p, laws), do: combine_traces(apply_laws(p, laws), p, laws)
   
   def combine_traces({ p, trace }, p, laws), do: { p, trace }
   def combine_traces({ p1, trace1 }, p, laws) do
-    { p2, trace2 } = handle_law_trace(apply_laws(p1, laws), p1, laws)
+    { p2, trace2 } = combine_traces(apply_laws(p1, laws), p1, laws)
     { p2, trace2 ++ trace1 }
   end
 
