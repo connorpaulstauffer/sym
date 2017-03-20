@@ -1,5 +1,8 @@
 defmodule Sym do 
   
+  alias Sym.Parser
+  alias Sym.Law
+  
   @op_strs %{ :! => "~", :& => "&", :|| => "v", :-> => "->", :<> => "<->" }
   @op_syms @op_strs 
     |> Map.keys 
@@ -16,7 +19,7 @@ defmodule Sym do
   def op_to_s(op), do: @op_strs[op]
   def op_to_sym(str), do: @op_syms[str]
   
-  def run(str), do: str |> Sym.Parser.parse_prop |> Sym.simplify |> Sym.print
+  def run(str), do: str |> Parser.parse_prop |> simplify |> print
   
   def print({ _, trace }), do:
     trace
@@ -51,7 +54,7 @@ defmodule Sym do
     trace |> Enum.map(fn ({ q1, law }) -> { { op, [p, q1] }, law } end)
   end
   
-  def apply_laws_rec(p), do: apply_laws_rec(p, @laws)
+  def apply_laws_rec(p), do: apply_laws_rec(p, Law.laws())
   def apply_laws_rec(p, laws), do: combine_traces(apply_laws(p, laws), p, laws)
   
   def combine_traces({ p, trace }, p, _), do: { p, trace }
@@ -68,7 +71,7 @@ defmodule Sym do
   
   def trace_laws(p, laws), do:
     laws 
-      |> Enum.scan({ p, nil }, &{ apply(Sym, &1, [elem(&2, 0)]), &1 })
+      |> Enum.scan({ p, nil }, &{ apply(Law, &1, [elem(&2, 0)]), &1 })
       |> Enum.reduce([{ p, nil }], 
         &if(elem(&1, 0) == elem(hd(&2), 0), do: &2, else: [&1 | &2]))
       |> Enum.filter(&(elem(&1, 1) != nil))
