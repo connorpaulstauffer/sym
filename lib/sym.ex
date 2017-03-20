@@ -10,6 +10,7 @@ defmodule Sym do
     
   @laws [
     :identity, 
+    :universal_bound,
     :double_negation, 
     :tautology,
     :contradiction,
@@ -22,25 +23,21 @@ defmodule Sym do
     :rev_distributive
   ]
   
-  @contradiction_seq [
-    :identity, 
-    :double_negation, 
-    :tautology,
-    :contradiction,
-    :idempotent, 
-    :biconditional, 
-    :negated_conditionals, 
-    :negated_conditional, 
-    :conditional, 
-    :rev_demorgan, 
-    :rev_distributive  
-  ]
-  
   # p ∨ c ≡ p
   def identity({ :||, [p, :C] }), do: p
+  def identity({ :||, [:C, p] }), do: p
   # p ∧ t ≡ p
   def identity({ :&, [p, :T] }), do: p
+  def identity({ :&, [:T, p] }), do: p
   def identity(p), do: p
+  
+  # p ∨ t ≡ t
+  def universal_bound({ :||, [_, :T] }), do: :T
+  def universal_bound({ :||, [:T, _] }), do: :T
+  # p ∧ c ≡ c
+  def universal_bound({ :&, [_, :C] }), do: :C
+  def universal_bound({ :&, [:C, _] }), do: :C
+  def universal_bound(p), do: p
   
   # ∼∼p ≡ p
   def double_negation({ :!, { :!, p } }), do: p
@@ -87,11 +84,13 @@ defmodule Sym do
   def rev_distributive(p), do: p
   
   def tautology({ :||, [p, { :!, p }] }), do: :T
+  def tautology({ :||, [{ :!, p }, p] }), do: :T
   def tautology(p), do: p
   
   def contradiction({ :&, [p, { :!, p }] }), do: :C
+  def contradiction({ :&, [{ :!, p }, p] }), do: :C
   def contradiction(p), do: p
-
+  
   def to_s({ :!, p }), do: "#{op_to_s(:!)}#{ to_s(p) }"
   def to_s({ op, [p, q] }), do: "(#{to_s(p)} #{op_to_s(op)} #{to_s(q)})"
   def to_s(:T), do: "T"
@@ -101,11 +100,7 @@ defmodule Sym do
   def op_to_s(op), do: @op_strs[op]
   def op_to_sym(str), do: @op_syms[str]
   
-  def run(str), do: 
-    str 
-      |> Sym.Parser.parse_prop 
-      |> Sym.simplify
-      |> Sym.print
+  def run(str), do: str |> Sym.Parser.parse_prop |> Sym.simplify |> Sym.print
   
   def print({ _, trace }), do:
     trace
@@ -143,8 +138,8 @@ defmodule Sym do
   def apply_laws_rec(p), do: apply_laws_rec(p, @laws)
   def apply_laws_rec(p, laws), do: combine_traces(apply_laws(p, laws), p, laws)
   
-  def combine_traces({ p, trace }, p, laws), do: { p, trace }
-  def combine_traces({ p1, trace1 }, p, laws) do
+  def combine_traces({ p, trace }, p, _), do: { p, trace }
+  def combine_traces({ p1, trace1 }, _, laws) do
     { p2, trace2 } = combine_traces(apply_laws(p1, laws), p1, laws)
     { p2, trace2 ++ trace1 }
   end
